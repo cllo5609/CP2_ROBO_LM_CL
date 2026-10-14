@@ -211,10 +211,10 @@ if __name__ == "__main__":
         else:
             q_rand = [random.uniform(0, 6), random.uniform(0, 6)]
 
-        turtlebot.show_intermediate_goal([q_rand[0], q_rand[1], 0])
+        # turtlebot.show_intermediate_goal([q_rand[0], q_rand[1], 0])
 
         # find nearest node in search tree to randomly sampled point
-        print(tree)
+        print(len(tree))
         q_near = tree[0]
         min_dist = math.dist(q_near.pos[:2], q_rand)
         for node in tree:
@@ -227,9 +227,13 @@ if __name__ == "__main__":
         best_rollout = None
         min_dist = float('inf')
 
-        for i in range(5):
+        err_free_props = 0
+        attempts = 0
+        while err_free_props < 5 and attempts < 100:
             turtlebot.teleport(q_near.pos, q_near.orn)
             p.resetBaseVelocity(turtlebot.turtleId, linearVelocity=[0,0,0], angularVelocity=[0,0,0])
+            p.resetJointState(turtleId, 0, 0, 0)
+            p.resetJointState(turtleId, 1, 0, 0)
 
             # varying random linear and angular velocity inputs
             linear_v = random.uniform(-2, 10)
@@ -264,6 +268,8 @@ if __name__ == "__main__":
                 if dist_to_rand < min_dist:
                     min_dist = dist_to_rand
                     best_rollout = (new_pos, new_orn, (v_left, v_right, duration))
+                err_free_props += 1
+            attempts += 1
 
         # add the optimal propagation to the tree
         if best_rollout is not None:
@@ -286,6 +292,6 @@ if __name__ == "__main__":
         # Example: if you comment this out your turtlebot will not move despite setting the wheel velocities
         p.stepSimulation()
 
-        # Command to stop recording
-        p.stopStateLogging(log_id)
+    # Command to stop recording
+    p.stopStateLogging(log_id)
     p.disconnect()
