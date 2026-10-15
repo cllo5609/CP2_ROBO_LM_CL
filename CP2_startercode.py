@@ -1,3 +1,5 @@
+import time
+
 import pybullet as p
 import pybullet_data
 import random
@@ -298,8 +300,20 @@ if __name__ == "__main__":
         # Example: if you comment this out your turtlebot will not move despite setting the wheel velocities
         p.stepSimulation()
 
+
     
+    if final_node is not None:
+        path = []
+        node = final_node
+        while node is not None:
+            path.insert(0, node)
+            node = node.parent
+        turtlebot.plot_path("green", [list(n.pos) for n in path])
+
+        for _ in range(240):
+            time.sleep(1/60)
 
     # Command to stop recording
     p.stopStateLogging(log_id)
+
     p.disconnect()
