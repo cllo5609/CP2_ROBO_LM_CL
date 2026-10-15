@@ -158,11 +158,13 @@ class Turtlebot():
 
         # Loop through old random goals and change them to black to show they are no longer the active goal
         size = 0.15
-        for goal, goal_cross_1, goal_cross_2 in self.old_goals:
+        if self.old_goals:
+            goal, goal_cross_1, goal_cross_2 = self.old_goals[-1]
             p.removeUserDebugItem(goal_cross_1)
             p.removeUserDebugItem(goal_cross_2)
             goal_cross_1 = p.addUserDebugLine([goal[0] - size, goal[1], 0.1], [goal[0] + size, goal[1], 0.1], lineColorRGB=[0, 0, 0], lineWidth=3)
             goal_cross_2 = p.addUserDebugLine([goal[0], goal[1] - size, 0.1], [goal[0], goal[1] + size, 0.1], lineColorRGB=[0, 0, 0], lineWidth=3)
+            self.old_goals[-1] = (goal, goal_cross_1, goal_cross_2)
 
         # If new random goal provided, plot blue cross marking it.
         if intermediate_goal != None:
@@ -210,8 +212,7 @@ if __name__ == "__main__":
             q_rand = GOAL
         else:
             q_rand = [random.uniform(0, 6), random.uniform(0, 6)]
-
-        # turtlebot.show_intermediate_goal([q_rand[0], q_rand[1], 0])
+            turtlebot.show_intermediate_goal([q_rand[0], q_rand[1], 0])
 
         # find nearest node in search tree to randomly sampled point
         print(len(tree))
@@ -249,6 +250,7 @@ if __name__ == "__main__":
             turtlebot.set_velocities(v_left, v_right)
             collision = False
 
+            traj = [list(q_near.pos)]
             # step in simulation to see where we end up
             for step in range(duration):
                 p.stepSimulation()
@@ -256,6 +258,8 @@ if __name__ == "__main__":
                     # discard if collision
                     collision = True
                     break
+                if step % 5 == 0:
+                    traj.append(list(turtlebot.get_position()))
 
             if not collision:
                 new_pos = turtlebot.get_position()
@@ -267,15 +271,17 @@ if __name__ == "__main__":
                 # use best rollout
                 if dist_to_rand < min_dist:
                     min_dist = dist_to_rand
-                    best_rollout = (new_pos, new_orn, (v_left, v_right, duration))
+                    traj.append(list(turtlebot.get_position()))
+                    best_rollout = (new_pos, new_orn, (v_left, v_right, duration), traj)
                 err_free_props += 1
             attempts += 1
 
         # add the optimal propagation to the tree
         if best_rollout is not None:
-            new_pos, new_orn, action = best_rollout
+            new_pos, new_orn, action, traj = best_rollout
             new_node = RRTNode(new_pos, new_orn, parent=q_near, action=action)
             tree.append(new_node)
+            turtlebot.plot_path("red", traj)
 
             # check if distance within radius 0.3 of goal
             dist_to_goal = math.dist(new_pos[:2], GOAL)
@@ -291,6 +297,8 @@ if __name__ == "__main__":
         # IMPORTANT - You need to run this command for every step in simulation
         # Example: if you comment this out your turtlebot will not move despite setting the wheel velocities
         p.stepSimulation()
+
+    
 
     # Command to stop recording
     p.stopStateLogging(log_id)
