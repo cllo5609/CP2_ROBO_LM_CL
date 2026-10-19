@@ -1,5 +1,4 @@
 import time
-
 import pybullet as p
 import pybullet_data
 import random
@@ -16,6 +15,7 @@ GOAL = [4.5, 4.5]
 GOAL_RADIUS = 0.3
 START_POS = [1.5, 1.5, 0]
 BLOCKS = [[1.5, 2.5], [4, 2], [3,5]]
+SPEEDUP = 10.0
 
 
 ### PYBULLET SETUP ###
@@ -131,10 +131,10 @@ class Turtlebot():
         # Supported colors
         if color_string == "red":
             color = [1, 0, 0]
-            line_width = 3
+            line_width = 25
         elif color_string == "green":
             color = [0, 1, 0]
-            line_width = 10
+            line_width = 25
         else:
             print("That color does not exist to be viewed. Not plotting Path.")
             return
@@ -177,12 +177,13 @@ class Turtlebot():
 
 ### MAIN - implement your solution here! ###
 class RRTNode:
-    def __init__(self, pos, orn, parent=None, action=None):
+    def __init__(self, pos, orn, parent=None, action=None, traj=None):
         self.pos = pos # [x, y, z]
         self.orn = orn # [x, y, z, w]
         self.parent = parent
         # stores the tuple (v_left, v_right, duration)
         self.action = action
+        self.traj = traj if traj is not None else []
 
 
 if __name__ == "__main__":
@@ -197,7 +198,6 @@ if __name__ == "__main__":
     p.setRealTimeSimulation(0)
 
     # Start recording video 
-    log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "./search.mp4")
 
     start_pos = turtlebot.get_position()
     start_orn = p.getQuaternionFromEuler([0, 0, 0])
@@ -219,16 +219,16 @@ if __name__ == "__main__":
         # find nearest node in search tree to randomly sampled point
         print(len(tree))
         q_near = tree[0]
-        min_dist = math.dist(q_near.pos[:2], q_rand)
+        min_dist_nearest = math.dist(q_near.pos[:2], q_rand)
         for node in tree:
             dist = math.dist(node.pos[:2], q_rand)
-            if dist < min_dist:
-                min_dist = dist
+            if dist < min_dist_nearest:
+                min_dist_nearest = dist
                 q_near = node
 
         # Monte-Carlo propagations
         best_rollout = None
-        min_dist = float('inf')
+        min_dist_to_rand = float('inf')
 
         err_free_props = 0
         attempts = 0
@@ -266,14 +266,15 @@ if __name__ == "__main__":
             if not collision:
                 new_pos = turtlebot.get_position()
                 new_orn = turtlebot.get_orientation()
-
+                traj.append(list(new_pos))
+                turtlebot.plot_path("red", traj)
                 # check resulting Euclidean distance to random sample
                 dist_to_rand = math.dist(new_pos[:2], q_rand)
 
                 # use best rollout
-                if dist_to_rand < min_dist:
-                    min_dist = dist_to_rand
-                    traj.append(list(turtlebot.get_position()))
+                if dist_to_rand < min_dist_to_rand:
+                    min_dist_to_rand = dist_to_rand
+                    # traj.append(list(turtlebot.get_position()))
                     best_rollout = (new_pos, new_orn, (v_left, v_right, duration), traj)
                 err_free_props += 1
             attempts += 1
@@ -281,10 +282,8 @@ if __name__ == "__main__":
         # add the optimal propagation to the tree
         if best_rollout is not None:
             new_pos, new_orn, action, traj = best_rollout
-            new_node = RRTNode(new_pos, new_orn, parent=q_near, action=action)
+            new_node = RRTNode(new_pos, new_orn, parent=q_near, action=action, traj=traj)
             tree.append(new_node)
-            turtlebot.plot_path("red", traj)
-
             # check if distance within radius 0.3 of goal
             dist_to_goal = math.dist(new_pos[:2], GOAL)
             if dist_to_goal <= GOAL_RADIUS:
@@ -304,16 +303,47 @@ if __name__ == "__main__":
     
     if final_node is not None:
         path = []
+        solution = []
         node = final_node
         while node is not None:
+            # Prepend to maintain forward order
             path.insert(0, node)
+            if node.traj:
+                solution = node.traj + solution
             node = node.parent
-        turtlebot.plot_path("green", [list(n.pos) for n in path])
+        turtlebot.plot_path("green", solution)
+        print("Setting simulation to starting position for playback.")
+        # Reset turtlebot to the start position for playback and reset its states
+        turtlebot.teleport(start_pos, start_orn)
+        p.resetBaseVelocity(turtlebot.turtleId, linearVelocity=[0, 0, 0], angularVelocity=[0, 0, 0])
+        p.resetJointState(turtleId, 0, 0, 0)
+        p.resetJointState(turtleId, 1, 0, 0)
+        turtlebot.set_velocities(0, 0)
 
-        for _ in range(240):
-            time.sleep(1/60)
+        # Begin recording for solution
+        log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "./search.mp4")
 
-    # Command to stop recording
-    p.stopStateLogging(log_id)
+        solution_nodes = path[1:]
+        # Align robot pose and velocity to match the start condition of this propagation branch
+        for current_node in solution_nodes:
+            v_left, v_right, duration = current_node.action
+            parent_pos = current_node.parent.pos
+            parent_orn = current_node.parent.orn
+            turtlebot.teleport(parent_pos, parent_orn)
+            p.resetBaseVelocity(turtlebot.turtleId, linearVelocity=[0, 0, 0], angularVelocity=[0, 0, 0])
+            p.resetJointState(turtleId, 0, 0, 0)
+            p.resetJointState(turtleId, 1, 0, 0)
+
+            # apply wheel velocities
+            turtlebot.set_velocities(v_left, v_right)
+            for i in range(duration):
+                p.stepSimulation()
+                # Divide by SPEEDUP to speedup live display of solution
+                time.sleep(1.0 / 240.0 / SPEEDUP)
+
+        # Stop the Robot!
+        turtlebot.set_velocities(0, 0)
+        print("Playback finished! Turtlebot has reached the goal.")
+        p.stopStateLogging(log_id)
 
     p.disconnect()
