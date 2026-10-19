@@ -303,10 +303,9 @@ if __name__ == "__main__":
         # Example: if you comment this out your turtlebot will not move despite setting the wheel velocities
         p.stepSimulation()
 
-    # Stop the search recording before starting the final path recording
-    p.stopStateLogging(search_log_id)
-
-    if final_node is not None:
+    if final_node is None:
+        p.stopStateLogging(search_log_id)
+    else:
         path = []
         solution = []
         node = final_node
@@ -317,6 +316,12 @@ if __name__ == "__main__":
                 solution = node.traj + solution
             node = node.parent
         turtlebot.plot_path("green", solution)
+
+        for _ in range(300):
+            time.sleep(1/60)
+
+        p.stopStateLogging(search_log_id)
+
         print("Setting simulation to starting position for playback.")
         # Reset turtlebot to the start position for playback and reset its states
         turtlebot.teleport(start_pos, start_orn)
