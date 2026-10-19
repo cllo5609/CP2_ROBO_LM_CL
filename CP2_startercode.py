@@ -131,10 +131,13 @@ class Turtlebot():
         # Supported colors
         if color_string == "red":
             color = [1, 0, 0]
-            line_width = 25
+            line_width = 2
+            z_offset = 0.05
         elif color_string == "green":
             color = [0, 1, 0]
-            line_width = 25
+            line_width = 8
+            # Draw above the red tree so the solution path isn't hidden
+            z_offset = 0.1
         else:
             print("That color does not exist to be viewed. Not plotting Path.")
             return
@@ -142,8 +145,8 @@ class Turtlebot():
         # Loop through path points and add debug line
         for i in range(1, len(path_points)):
             p.addUserDebugLine(
-                [path_points[i-1][0], path_points[i-1][1], path_points[i-1][2] + 0.05],
-                [path_points[i][0],   path_points[i][1],   path_points[i][2] + 0.05],
+                [path_points[i-1][0], path_points[i-1][1], path_points[i-1][2] + z_offset],
+                [path_points[i][0],   path_points[i][1],   path_points[i][2] + z_offset],
                 color,
                 lineWidth=line_width
             )
@@ -197,7 +200,8 @@ if __name__ == "__main__":
     # Turn off real-time simulation for manual step control
     p.setRealTimeSimulation(0)
 
-    # Start recording video 
+    # Start recording video of the search
+    search_log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "./search.mp4")
 
     start_pos = turtlebot.get_position()
     start_orn = p.getQuaternionFromEuler([0, 0, 0])
@@ -299,8 +303,9 @@ if __name__ == "__main__":
         # Example: if you comment this out your turtlebot will not move despite setting the wheel velocities
         p.stepSimulation()
 
+    # Stop the search recording before starting the final path recording
+    p.stopStateLogging(search_log_id)
 
-    
     if final_node is not None:
         path = []
         solution = []
@@ -321,7 +326,7 @@ if __name__ == "__main__":
         turtlebot.set_velocities(0, 0)
 
         # Begin recording for solution
-        log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "./search.mp4")
+        log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "./final_path.mp4")
 
         solution_nodes = path[1:]
         # Align robot pose and velocity to match the start condition of this propagation branch
