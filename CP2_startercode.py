@@ -204,6 +204,7 @@ if __name__ == "__main__":
     search_log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "./search.mp4")
 
     start_pos = turtlebot.get_position()
+    # Source: https://pybullet.org/Bullet/phpBB3/viewtopic.php%3Ft=13235.html
     start_orn = p.getQuaternionFromEuler([0, 0, 0])
     root_node = RRTNode(start_pos, start_orn)
     tree = [root_node]
@@ -331,10 +332,11 @@ if __name__ == "__main__":
         turtlebot.set_velocities(0, 0)
 
         # Begin recording for solution
+        # Source: https://pybullet.org/Bullet/phpBB3/viewtopic.php%3Ft=11976.html
         log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "./final_path.mp4")
 
         solution_nodes = path[1:]
-        # Align robot pose and velocity to match the start condition of this propagation branch
+        # Align robot position and velocity to match the start condition of this propagation branch
         for current_node in solution_nodes:
             v_left, v_right, duration = current_node.action
             parent_pos = current_node.parent.pos
